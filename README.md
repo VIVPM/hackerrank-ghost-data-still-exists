@@ -44,17 +44,61 @@ Full specification: [problem_statement.md](problem_statement.md).
 
 ## Architecture
 
+Read from top to bottom: **load the evidence → connect records to people → let the agent investigate → check and save its answer**.
+
 ```mermaid
-flowchart LR
-    Data["Evidence + identities<br/>+ activity + policy"] --> Index["Python readers<br/>and indexes"]
-    Request["Request +<br/>audit cutoff"] --> Agent["GLM-5.3<br/>agent"]
-    Index --> Tools["Investigation<br/>tools"]
-    Agent <-->|"calls / facts"| Tools
-    Agent --> Check["submit_answer<br/>checks"]
-    Index -.-> Check
-    Check -->|"revise"| Agent
-    Check -->|"accepted"| Output["Saved results<br/>output.csv + usage"]
+flowchart TB
+    subgraph Input["1. Supplied data"]
+        Files["SQL · JSON · logs · text<br/>PDFs · screenshots"]
+        People["Current identities<br/>+ identity history"]
+        Activity["System activity<br/>+ deletion rules"]
+        Requests["518 deletion requests<br/>+ audit cutoffs"]
+    end
+
+    subgraph Prepare["2. Prepare searchable facts — Python"]
+        Read["Read evidence<br/>SQLite · parsers · PyMuPDF · RapidOCR"]
+        Match["Connect people and records<br/>old identifiers · resource links · account matching"]
+        Store["Shared evidence indexes<br/>record observations · snapshots · policy"]
+        Read --> Match --> Store
+    end
+
+    subgraph Investigate["3. Agent investigation — repeated for each request"]
+        Agent["GLM-5.3 · low reasoning<br/>Understand request and choose next tool"]
+        IdentityTools["Find the person and their records<br/>lookup_person · find_records"]
+        RecordTools["Check record state and required treatment<br/>get_record_state · get_policy"]
+        Agent -->|"choose"| IdentityTools
+        Agent -->|"choose"| RecordTools
+        IdentityTools -->|"identifiers and linked records"| Agent
+        RecordTools -->|"evidence and policy"| Agent
+    end
+
+    subgraph Finish["4. Check, save and report"]
+        Check["submit_answer<br/>Check operations and citations<br/>Order and number steps"]
+        Saved["Save each accepted answer<br/>status · steps · tokens · attempts"]
+        CSV["output.csv · all 518 cases<br/>COMPLETE / INCOMPLETE / NOT_APPLICABLE"]
+        Reports["Evaluation and usage reports<br/>sample scores · tests · token and cost totals"]
+        Check -->|"accepted"| Saved
+        Saved --> CSV
+        Saved --> Reports
+    end
+
+    Files --> Read
+    People --> Match
+    Activity --> Store
+    Requests --> Agent
+    Store --> IdentityTools
+    Store --> RecordTools
+    Store -.->|"policy and evidence checks"| Check
+    Agent -->|"propose status and steps"| Check
+    Check -->|"errors: revise answer"| Agent
+
+    style Input fill:#e1f5fe,stroke:#01579b,color:#111
+    style Prepare fill:#fff3e0,stroke:#e65100,color:#111
+    style Investigate fill:#e8f5e9,stroke:#1b5e20,color:#111
+    style Finish fill:#f3e5f5,stroke:#6a1b9a,color:#111
 ```
+
+**How to read the agent loop:** GLM-5.3 asks a tool for facts, reads its reply, then decides what to check next. Once it has an answer, `submit_answer` checks it. A rejected answer goes back to the agent for correction; an accepted answer is saved. The reporting commands summarize saved results separately—they are not tools the agent calls.
 
 Evidence preparation is deterministic code; **the investigation is model-directed**. There is no fixed tool-call order. For example, the agent can inspect a suspicious record, ask for its policy, investigate another copy, and revise its answer after validation feedback.
 
