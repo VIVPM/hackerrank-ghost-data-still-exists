@@ -96,6 +96,7 @@ flowchart TB
     style Prepare fill:#fff3e0,stroke:#e65100,color:#111
     style Investigate fill:#e8f5e9,stroke:#1b5e20,color:#111
     style Finish fill:#f3e5f5,stroke:#6a1b9a,color:#111
+    linkStyle default stroke:#64748b,stroke-width:3px
 ```
 
 **How to read the agent loop:** GLM-5.3 asks a tool for facts, reads its reply, then decides what to check next. Once it has an answer, `submit_answer` checks it. A rejected answer goes back to the agent for correction; an accepted answer is saved. The reporting commands summarize saved results separately—they are not tools the agent calls.
