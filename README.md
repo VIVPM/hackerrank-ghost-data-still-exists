@@ -45,40 +45,15 @@ Full specification: [problem_statement.md](problem_statement.md).
 ## Architecture
 
 ```mermaid
-flowchart TD
-    subgraph Inputs[1. Participant-facing inputs]
-        Requests[Deletion requests and audit cutoffs]
-        Identity[Current identities and identity history]
-        Policy[Deletion rules]
-        Evidence[SQL · JSON · logs · text · PDFs · screenshots]
-        Activity[Global system activity]
-    end
-
-    subgraph Preparation[2. Evidence preparation — Python]
-        Readers[SQLite · parsers · PyMuPDF · RapidOCR]
-        Index[Normalized rows, identity links and snapshot indexes]
-        Evidence --> Readers --> Index
-        Identity --> Index
-        Activity --> Index
-    end
-
-    subgraph Investigation[3. One agent per request]
-        Model[GLM-5.3 — low reasoning]
-        Tools[lookup_person · find_records\nget_record_state · get_policy]
-        Submit[submit_answer checks]
-        Model -->|chooses tools| Tools
-        Tools -->|facts and evidence references| Model
-        Model -->|proposes status and steps| Submit
-        Submit -->|validation errors| Model
-    end
-
-    Requests --> Model
-    Index --> Tools
-    Policy --> Tools
-    Policy --> Submit
-    Submit -->|accepted answer| Saved[Per-case result and usage]
-    Saved --> CSV[output.csv — 518 rows]
-    Saved --> Reports[Evaluation and usage reports]
+flowchart LR
+    Data["Evidence + identities<br/>+ activity + policy"] --> Index["Python readers<br/>and indexes"]
+    Request["Request +<br/>audit cutoff"] --> Agent["GLM-5.3<br/>agent"]
+    Index --> Tools["Investigation<br/>tools"]
+    Agent <-->|"calls / facts"| Tools
+    Agent --> Check["submit_answer<br/>checks"]
+    Index -.-> Check
+    Check -->|"revise"| Agent
+    Check -->|"accepted"| Output["Saved results<br/>output.csv + usage"]
 ```
 
 Evidence preparation is deterministic code; **the investigation is model-directed**. There is no fixed tool-call order. For example, the agent can inspect a suspicious record, ask for its policy, investigate another copy, and revise its answer after validation feedback.
@@ -427,8 +402,6 @@ Keep these reports with the code:
 
 When preparing an archive, exclude the dataset, virtual environments, caches, run folders, credentials and nested archives. The predictions and transcript are separate deliverables.
 
-Challenge and submission page: https://wwww.hackerrank.com/contests/hackerrank-orchestrate-october26/challenges/ghost-data-still-exists
-
 ---
 
-*Built from the HackerRank Orchestrate October 2026 starter materials. The agent implementation, investigation tools and evaluation reports document this solution.*
+*Forked from the [interviewstreet/hackerrank-orchestrate-october26](https://github.com/interviewstreet/hackerrank-orchestrate-october26) starter repo; the `code/` agent, design docs, and outputs are my own work.*
